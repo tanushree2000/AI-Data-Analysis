@@ -12,6 +12,7 @@ from agno.tools.pandas import PandasTools
 # ---------------------------------------------------------------------------
 st.set_page_config(
     page_title="Data Analyst Agent",
+    page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -22,28 +23,103 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+        /* ---- Header ---- */
         .main-header {
-            font-size: 2.2rem;
+            font-size: 2.1rem;
             font-weight: 700;
             margin-bottom: 0;
+            letter-spacing: -0.02em;
+            color: #111827;
         }
         .sub-header {
             color: #6b7280;
-            font-size: 1rem;
-            margin-top: 0.1rem;
-            margin-bottom: 1.5rem;
+            font-size: 0.98rem;
+            margin-top: 0.15rem;
+            margin-bottom: 1.4rem;
         }
+
+        /* ---- Status badge ---- */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 14px;
+            border-radius: 999px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            margin-top: 8px;
+        }
+        .status-ready {
+            background-color: #ecfdf5;
+            color: #047857;
+            border: 1px solid #a7f3d0;
+        }
+        .status-pending {
+            background-color: #fffbeb;
+            color: #b45309;
+            border: 1px solid #fde68a;
+        }
+
+        /* ---- Metric cards ---- */
         div[data-testid="stMetric"] {
-            background-color: #f8f9fb;
-            border: 1px solid #eaecef;
-            border-radius: 10px;
-            padding: 12px 16px;
+            background-color: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 14px 18px;
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
         }
+        div[data-testid="stMetricLabel"] {
+            color: #6b7280;
+        }
+
+        /* ---- Buttons ---- */
         .stButton>button {
             border-radius: 8px;
+            font-weight: 500;
         }
         section[data-testid="stSidebar"] .stButton>button {
             width: 100%;
+        }
+
+        /* ---- Sidebar ---- */
+        section[data-testid="stSidebar"] {
+            border-right: 1px solid #e5e7eb;
+        }
+        .sidebar-section-title {
+            font-size: 0.75rem;
+            font-weight: 700;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: #9ca3af;
+            margin-top: 0.5rem;
+            margin-bottom: 0.4rem;
+        }
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.88rem;
+            padding: 4px 0;
+            color: #374151;
+        }
+
+        /* ---- Expander / chat containers ---- */
+        div[data-testid="stExpander"] {
+            border: 1px solid #e5e7eb;
+            border-radius: 10px;
+        }
+        div[data-testid="stChatMessage"] {
+            border-radius: 12px;
+        }
+
+        /* ---- Footer ---- */
+        .app-footer {
+            margin-top: 2.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 0.8rem;
+            text-align: center;
         }
     </style>
     """,
@@ -112,9 +188,10 @@ st.session_state.setdefault("pending_query", None)
 # Sidebar
 # ---------------------------------------------------------------------------
 with st.sidebar:
-    st.markdown("### ⚙️ Setup")
+    st.markdown('<p class="sidebar-section-title">⚙️ Setup</p>', unsafe_allow_html=True)
     openai_key = st.text_input(
-        "OpenAI API key", type="password", value=st.session_state.openai_key
+        "OpenAI API key", type="password", value=st.session_state.openai_key,
+        help="Your key is kept only in this session and never stored.",
     )
     if openai_key:
         st.session_state.openai_key = openai_key
@@ -123,11 +200,21 @@ with st.sidebar:
         st.warning("Enter your OpenAI API key to get started.")
 
     st.divider()
-    st.markdown("### 📁 Data")
+    st.markdown('<p class="sidebar-section-title">📁 Data</p>', unsafe_allow_html=True)
     uploaded_file = st.file_uploader("Upload a CSV or Excel file", type=["csv", "xlsx"])
 
     if uploaded_file is not None:
         st.caption(f"**{uploaded_file.name}** · {uploaded_file.size / 1024:.1f} KB")
+
+    st.divider()
+    st.markdown('<p class="sidebar-section-title">Status</p>', unsafe_allow_html=True)
+    key_icon = "✅" if st.session_state.openai_key else "⬜"
+    file_icon = "✅" if uploaded_file is not None else "⬜"
+    st.markdown(
+        f'<div class="status-row">{key_icon} API key connected</div>'
+        f'<div class="status-row">{file_icon} Dataset uploaded</div>',
+        unsafe_allow_html=True,
+    )
 
     st.divider()
     if st.button("🗑️ Clear chat history"):
@@ -137,11 +224,25 @@ with st.sidebar:
 # ---------------------------------------------------------------------------
 # Header
 # ---------------------------------------------------------------------------
-st.markdown('<p class="main-header">📊 Data Analyst Agent</p>', unsafe_allow_html=True)
-st.markdown(
-    '<p class="sub-header">Upload a dataset and ask questions about it in plain English.</p>',
-    unsafe_allow_html=True,
-)
+is_ready = bool(st.session_state.openai_key) and uploaded_file is not None
+header_col, badge_col = st.columns([5, 2])
+with header_col:
+    st.markdown('<p class="main-header">📊 Data Analyst Agent</p>', unsafe_allow_html=True)
+    st.markdown(
+        '<p class="sub-header">Upload a dataset and ask questions about it in plain English.</p>',
+        unsafe_allow_html=True,
+    )
+with badge_col:
+    if is_ready:
+        st.markdown(
+            '<div class="status-badge status-ready">🟢 Ready to analyze</div>',
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            '<div class="status-badge status-pending">🟡 Setup needed</div>',
+            unsafe_allow_html=True,
+        )
 
 # ---------------------------------------------------------------------------
 # Empty states
@@ -201,11 +302,13 @@ for col, example in zip(cols, example_queries):
     if col.button(example):
         st.session_state.pending_query = example
 
+CHAT_AVATARS = {"user": "🧑", "assistant": "📊"}
+
 # ---------------------------------------------------------------------------
 # Chat history
 # ---------------------------------------------------------------------------
 for role, content in st.session_state.chat_history:
-    with st.chat_message(role):
+    with st.chat_message(role, avatar=CHAT_AVATARS.get(role)):
         st.markdown(content)
 
 # ---------------------------------------------------------------------------
@@ -218,10 +321,10 @@ if st.session_state.pending_query:
 
 if user_query:
     st.session_state.chat_history.append(("user", user_query))
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar=CHAT_AVATARS["user"]):
         st.markdown(user_query)
 
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar=CHAT_AVATARS["assistant"]):
         with st.spinner("Analyzing your data..."):
             try:
                 response = data_analyst_agent.run(user_query)
@@ -237,3 +340,11 @@ if user_query:
                 )
                 st.error(error_msg)
                 st.session_state.chat_history.append(("assistant", error_msg))
+
+# ---------------------------------------------------------------------------
+# Footer
+# ---------------------------------------------------------------------------
+st.markdown(
+    '<div class="app-footer">Powered by GPT-4o · DuckDB · Streamlit</div>',
+    unsafe_allow_html=True,
+)
